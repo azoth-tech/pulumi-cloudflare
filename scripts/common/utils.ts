@@ -3,20 +3,24 @@
  */
 
 import * as fs from 'fs';
-import {execSync} from 'child_process';
-import {CLIOptions, CloudflareResources, ParsedResource, PROP, PulumiStack} from './types.js';
+import {CLIOptions, ParsedResource, PROP} from './types.js';
 // @ts-ignore
 import PropertiesReader from 'properties-reader';
 import {parseArgs} from 'util';
 import {execa} from 'execa';
-import {text, TextOptions, isCancel} from "@clack/prompts";
-import * as pulumi from '@pulumi/pulumi';
-import {Config} from "@pulumi/pulumi";
-
+import {isCancel, text, TextOptions} from "@clack/prompts";
+import {Config, Output} from '@pulumi/pulumi';
+import * as path from 'path';
+import {dirname, resolve} from 'path';
+import {fileURLToPath} from "url";
 
 export const MAX_RETRY_ATTEMPTS = 6;
 export const RETRY_DELAY_SECONDS = 10;
 export const COMMAND_TIMEOUT_MS = 30000; // 30 seconds
+export const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+export const PULUMI_DIR = path.join(PROJECT_DIR, "pulumi");
+
+console.log(`🗂 projectRoot:${PROJECT_DIR} \n🗂 pulumiDir: ${PULUMI_DIR}`)
 
 
 export async function executeRaw(
@@ -25,24 +29,22 @@ export async function executeRaw(
         cwd?: string; env?: NodeJS.ProcessEnv; shell?: boolean; input?: string;
     } = {}
 ): Promise<string | undefined> {
-    console.log(`  → ${command} ${args.join(' ')}`);
-
+    console.log(`  🏄‍♂️ ${command} ${args.join(' ')}`);
+    const env = {...process.env, ...options.env};
     try {
         const {stdout} = await execa(command, args, {
             cwd: options.cwd,
-            env: options.env,
+            env: env,
             timeout: 60000,
             killSignal: 'SIGTERM',
             shell: options.shell,
             input: options.input,
-            stdio: options.input ? ['pipe', 'pipe', 'pipe'] : 'inherit'
+            stdio: options.input ? ['pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe']
         });
         return stdout;
-
     } catch (error: any) {
         if (error.stdout) console.log(error.stdout);
         if (error.stderr) console.error(error.stderr);
-
         throw new Error(`Command failed: ${command} - ${error.message}`);
     }
 }
@@ -54,49 +56,31 @@ export async function executeJson(
     } = {}
 ): Promise<any> {
     let output = await executeRaw(command, args, options);
-    return JSON.parse(output || '[]');
+    return JSON.parse(output || '{}');
 }
 
 export async function pulumiConfig(key: string, value: string, isSecret = false): Promise<void> {
     const options = {
         env: {...process.env},
-        input: value
+        input: value,
+        shell: true
     }
-    await executeRaw('npx', ['pulumi', 'config', 'set', key, '--secret'], options);
+    const secretFlag = isSecret ? '--secret' : '';
+    await executeRaw('pulumi', ['config', 'set', key, secretFlag, '--cwd', PULUMI_DIR], options);
 }
 
-export async function pulumiUp(auto = false): Promise<void> {
-    const options = {
-        env: {...process.env}
-    }
-    const upCmd = auto ? 'npx pulumi up --yes' : 'npx pulumi up';
-    await executeRaw(upCmd, [], options);
+export async function pulumiUp(auto: boolean = false, options:any):
+    Promise<void> {
+    await executeRaw(`npx pulumi`, ['up', '--yes', '--cwd', PULUMI_DIR,'--verbose=0'], options);
 }
-
 
 export function isSecret(key: string): boolean {
     const lowerKey = key.toLowerCase();
     return ['key', 'secret', 'token', 'password'].some(keyword =>
         lowerKey.includes(keyword)
     );
-
 }
 
-export function getAvailableStacks(): string[] {
-    try {
-        const result = execSync('pulumi stack ls --json', {
-            encoding: 'utf8',
-            timeout: COMMAND_TIMEOUT_MS,
-        });
-        const stacks: PulumiStack[] = JSON.parse(result);
-        return stacks
-            .map((stack: PulumiStack) => stack.name)
-            .filter((name: string) => name.includes('.workers.dev'));
-    } catch (error) {
-        console.error('❌ Failed to list available stacks:', error instanceof Error ? error.message : String(error));
-        return [];
-    }
-}
 
 export function propertyReader(filePath: string): PropertiesReader.Reader {
     if (!fs.existsSync(filePath)) {
@@ -139,7 +123,7 @@ export function extractStackName(baseUrl: string): string {
         const url = new URL(baseUrl);
         return url.hostname.replace(/\./g, '-');
     } catch {
-        throw new Error(`Invalid WORKER_BASE_URL format: ${baseUrl}`);
+        throw new Error(`Invalid BASE_URL format: ${baseUrl}`);
     }
 }
 
@@ -160,15 +144,20 @@ export function errorLog(str: string): string {
     process.exit(1);
 }
 
-export async function validatePassPhrase(propertiesFile: string, auto: boolean, env: NodeJS.ProcessEnv = process.env): Promise<void> {
-    if (!env.PULUMI_CONFIG_PASSPHRASE) {
-        if (auto) {
-            errorLog('PULUMI_CONFIG_PASSPHRASE environment variable is not set')
-            process.exit(1);
-        } else {
-
-        }
+export async function validatePassPhrase(propertiesFile: string, auto: boolean, env: NodeJS.ProcessEnv = process.env): Promise<string | undefined> {
+    if (env.PULUMI_CONFIG_PASSPHRASE || env.PULUMI_CONFIG_PASSPHRASE_FILE) {
+        return env.PULUMI_CONFIG_PASSPHRASE;
     }
+
+    if (auto) {
+        errorLog('PULUMI_CONFIG_PASSPHRASE environment variable is not set');
+    }
+
+    const passphrase = await prompt({
+        message: 'Enter PULUMI_CONFIG_PASSPHRASE:',
+        placeholder: 'Enter your Pulumi stack passphrase'
+    });
+    return passphrase;
 }
 
 export async function prompt(options: TextOptions): Promise<string> {
@@ -200,11 +189,13 @@ export const createResourceInfo =
 
 export function extractBinding(input: string): string {
     if (!input) return '';
-    const dashIndex = input.lastIndexOf('-');
-    if (dashIndex === -1 || dashIndex === input.length - 1) {
-        return '';
-    }
-    return input.substring(dashIndex + 1);
+
+    const mainPart = input.split(':')[0];
+    const underscoreIndex = mainPart.indexOf('_');
+
+    return underscoreIndex > -1 && underscoreIndex < mainPart.length - 1
+        ? mainPart.slice(underscoreIndex + 1).toUpperCase()
+        : '';
 }
 export function getD1DbName(cloudflareResource: string, projectId: string): string | undefined {
     const d1SpecList = cloudflareResource
@@ -213,7 +204,7 @@ export function getD1DbName(cloudflareResource: string, projectId: string): stri
         .filter(s => s.startsWith('d1_'));
 
     if (d1SpecList.length == 0) return undefined;
-    const d1Spec=d1SpecList[0];
+    const d1Spec = d1SpecList[0];
 
     if (d1Spec.includes(':')) {
         return d1Spec.split(':')[1]?.trim() || undefined;

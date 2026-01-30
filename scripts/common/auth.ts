@@ -36,7 +36,14 @@ export function getProcessEnv(reader: Reader): NodeJS.ProcessEnv {
         apiToken: reader.getRaw(PROP.CLOUDFLARE_API_TOKEN)?.trim()!,
         accountId: reader.getRaw(PROP.CLOUDFLARE_ACCOUNT_ID)?.trim()!
     }
-    return getCloudflareEnv(creds);
+    const env = getCloudflareEnv(creds);
+
+    const passphrase = reader.getRaw('PULUMI_CONFIG_PASSPHRASE')?.trim();
+    if (passphrase) {
+        env.PULUMI_CONFIG_PASSPHRASE = passphrase;
+    }
+
+    return env;
 }
 
 export async function isPulumiLoggedIn(): Promise<boolean> {
@@ -49,11 +56,8 @@ export async function isPulumiLoggedIn(): Promise<boolean> {
 }
 
 
-/**
- * Ensure Pulumi is logged in, exit if not
- */
-export function ensurePulumiLogin(): void {
-    if (!isPulumiLoggedIn()) {
+export async function ensurePulumiLogin(): Promise<void> {
+    if (!(await isPulumiLoggedIn())) {
         console.error('❌ Not logged in to Pulumi. Run: pulumi login');
         process.exit(1);
     }

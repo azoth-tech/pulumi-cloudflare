@@ -1,35 +1,39 @@
 import * as pulumi from '@pulumi/pulumi';
 import * as cloudflare from '@pulumi/cloudflare';
 import * as command from '@pulumi/command';
-import * as fs from 'fs';
 import * as path from 'path';
 import {
-    camelToSnake,
-    CloudflareCredentials, CloudflareResources, createResourceInfo, extractBinding, getD1DbName, isSecret,
-    ParsedResource, parseResource,
-    PROP,
+    CloudflareCredentials,
+    CloudflareResources,
+    createResourceInfo,
+    extractBinding,
+    getD1DbName,
+    ParsedResource,
+    parseResource,
+    PROP,PROJECT_DIR,
     pulumiProperty,
     snakeToCamel
-
 } from "./common/index.js";
-import * as HandleBars from "handlebars";
 import {createD1Toml, createKVToml, createToml, createVarsToml} from "./common/templateutils.js";
 
 const config = new pulumi.Config();
 const stackName = pulumi.getStack();
 
-const projectRoot = path.resolve(__dirname, '..');
+const projectRoot = PROJECT_DIR;
 const instanceDir = path.join(projectRoot, "instances", stackName);
 const wranglerTomlFile = path.join(instanceDir, 'wrangler.toml');
 
-const creds: CloudflareCredentials = {
-    apiToken: config.requireSecret(snakeToCamel(PROP.CLOUDFLARE_API_TOKEN)).get(),
-    accountId: config.require(snakeToCamel(PROP.CLOUDFLARE_ACCOUNT_ID))
-}
+console.log(`🗂 Pulumi Config instanceDir: ${instanceDir}`)
 
 const projectId = pulumiProperty(config, PROP.PROJECT_ID);
+const projectType = pulumiProperty(config,PROP.PROJECT_TYPE);
 const cloudFlareResource = pulumiProperty(config, PROP.CLOUDFLARE_RESOURCE)!;
+
 const resources = cloudFlareResource.split(',').map(r => r.trim());
+const creds: CloudflareCredentials = {
+    apiToken: (snakeToCamel(PROP.CLOUDFLARE_API_TOKEN)),
+    accountId: config.require(snakeToCamel(PROP.CLOUDFLARE_ACCOUNT_ID))
+}
 
 async function synchronizeResources(creds: CloudflareCredentials, resources: string[], projectId: string): Promise<CloudflareResources> {
     let response: CloudflareResources = {
@@ -43,7 +47,7 @@ async function synchronizeResources(creds: CloudflareCredentials, resources: str
 
         const binding = extractBinding(resourceType);
         const existing = await getExistingResource(creds, resourceType, resourceName);
-        let opts = existing ? {import: existing.id} : undefined;
+        let opts = existing ? {import: `${creds.accountId}/${existing.id}`} : undefined;
         if (resourceType.startsWith('kv_')) {
             const kvResource = new cloudflare.WorkersKvNamespace(resourceName, {
                 accountId: creds.accountId,
@@ -53,7 +57,8 @@ async function synchronizeResources(creds: CloudflareCredentials, resources: str
         } else if (resourceType.startsWith('d1_')) {
             const d1Resource = new cloudflare.D1Database(resourceName, {
                 accountId: creds.accountId,
-                name: resourceName
+                name: resourceName,
+                readReplication: { mode: 'disabled' }
             }, opts);
             response.d1!.push(createResourceInfo(resourceType, d1Resource, binding));
         } else if (resourceType.startsWith('r2_')) {
@@ -91,28 +96,25 @@ async function getExistingResource(creds: CloudflareCredentials, resourceType: s
             });
             return bucket ? {id: bucket.id} : null;
         }
-    } catch (e) {
-        console.log(`⚠️ Error Searching for ${resourceName}`);
+    } catch (e: any) {
+        console.log(`⚠️ Error Searching for ${resourceName} ,${e.message}`);
+        console.error(e.trace)
         return null;
     }
     console.log(`⚠️ No existing resource ${resourceName}`);
     return null;
 }
 
-function createFinalToml(cloudflareResouces: CloudflareResources, projectId: string, config: pulumi.Config, creds: CloudflareCredentials) {
+function createFinalToml(cloudflareResouces: CloudflareResources, projectId: string, creds: CloudflareCredentials) {
     const accountId = creds.accountId;
-    return pulumi.all([
-        cloudflareResouces.kv,
-        cloudflareResouces.d1,
-        cloudflareResouces.r2,
-        projectId
-    ]).apply(([kvList, d1List, r2List, projectId]) => {
-        const d1Value = createD1Toml(d1List);
-        const kvValue = createKVToml(kvList);
-        // const r2Value = createR2Toml(r2List); // Uncomment when implemented
-        const r2Value = '';
-        const varsValue = createVarsToml(config);
-        return createToml(projectId, accountId, d1Value, kvValue, r2Value, varsValue);
+    const d1Value = createD1Toml(cloudflareResouces.d1);
+    const kvValue = createKVToml(cloudflareResouces.kv);
+    const r2Value = '';
+    let allConfig= pulumi.runtime.allConfig()
+
+    const varsValue = createVarsToml(allConfig);
+    return pulumi.all([d1Value, kvValue]).apply(([resolvedD1, resolvedKv]) => {
+        return createToml(projectId, accountId, resolvedD1, resolvedKv, r2Value, varsValue);
     });
 }
 
@@ -122,16 +124,17 @@ const resourceObjects = [
     ...((cloudflareResources?.d1 ?? [])),
     ...((cloudflareResources?.r2 ?? [])),
 ].map(x => x.resource);
-let finalToml = createFinalToml(cloudflareResources, projectId, config, creds);
+let finalToml = createFinalToml(cloudflareResources, projectId, creds);
+
 
 const createWranglerToml = new command.local.Command(
-    'write-wrangler-toml',
+    "write-wrangler-toml",
     {
-        create: pulumi.interpolate`mkdir -p ${projectRoot}/${instanceDir} && cat > ${wranglerTomlFile}`,
+        create: pulumi.interpolate`npx tsx "./pulumi-cloudflare/scripts/create-wrangler-toml.ts" "${wranglerTomlFile}"`,
         stdin: finalToml,
         dir: projectRoot,
     },
-    {dependsOn: resourceObjects}
+    { dependsOn: resourceObjects }
 );
 
 let d1DbName = getD1DbName(cloudFlareResource, projectId);
@@ -139,7 +142,7 @@ let d1DbName = getD1DbName(cloudFlareResource, projectId);
 const applySchema = d1DbName ? new command.local.Command(
     'apply-d1-schema',
     {
-        create: `wrangler d1 migrations apply ${d1DbName} --config ${wranglerTomlFile}`,
+        create: `wrangler d1 migrations apply ${d1DbName} --remote --config ${wranglerTomlFile}`,
         dir: projectRoot,
         environment: {
             CLOUDFLARE_API_TOKEN: creds.apiToken,
@@ -151,7 +154,6 @@ const applySchema = d1DbName ? new command.local.Command(
     {dependsOn: [createWranglerToml]}
 ) : undefined;
 
-const projectType = config.require(PROP.PROJECT_TYPE);
 if (projectType == 'worker') {
     const deployWorker = new command.local.Command(
         'deploy-worker',
