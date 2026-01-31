@@ -21,3 +21,4 @@ instances/
 package-lock.json
 # OS specific
 .DS_Store
+setup.properties
