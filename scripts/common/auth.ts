@@ -2,12 +2,10 @@
  * Authentication and Configuration Utilities
  */
 
-import {execSync} from 'child_process';
 
 import {CloudflareCredentials, PROP} from './types.js';
-import {executeRaw, propertyReader} from './utils.js';
+import {executeRaw} from './utils.js';
 import {Reader} from "properties-reader";
-import {apiKey, apiToken} from "@pulumi/cloudflare/config/index.js";
 
 export function getCloudflareEnv(creds: CloudflareCredentials): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = {...process.env};

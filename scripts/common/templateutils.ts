@@ -1,4 +1,4 @@
-import {ParsedResource, PROP, TypedResource} from "./types.js";
+import { PROP, TypedResource} from "./types.js";
 import {camelToSnake, isSecret} from "./utils.js";
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
@@ -6,7 +6,7 @@ import Handlebars from 'handlebars';
 
 const tomlTemplate = `
 name = "{{projectId}}"
-main = "../../src/index.ts"
+main = "../../../src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "{{accountId}}"
@@ -28,7 +28,7 @@ const d1TemplateStr = `
 binding = "{{binding}}"
 database_name = "{{name}}"
 database_id = "{{id}}"
-migrations_dir = "../../migration"
+migrations_dir = "../../../migrations"
 {{/each}}
 {{else}}
 # No databases configured

@@ -1,7 +1,6 @@
 /**
  * Shared Type Definitions for Infrastructure Scripts
  */
-import * as pulumi from '@pulumi/pulumi';
 import * as cloudflare from '@pulumi/cloudflare';
 
 export interface CloudflareCredentials {
@@ -12,19 +11,28 @@ export interface CloudflareCredentials {
 export interface ParsedResource {
     prefix: string;
     name: string;
-};
+}
 
 export interface TypedResource<T> {
     type: string;
     resource: T;
     binding?: string;
+    existing:boolean;
 }
+
 export interface CloudflareResources {
     kv: TypedResource<cloudflare.WorkersKvNamespace>[]; // **not optional**
     d1: TypedResource<cloudflare.D1Database>[];
     r2: TypedResource<cloudflare.R2Bucket>[];
 }
 
+export interface ExecuteOptions {
+    cwd?: string;
+    env?: NodeJS.ProcessEnv;
+    shell?: boolean;
+    input?: string;
+    stdoutPipe?: boolean
+}
 
 export const PROP = {
     CLOUDFLARE_ACCOUNT_ID: 'CLOUDFLARE_ACCOUNT_ID',
@@ -35,42 +43,8 @@ export const PROP = {
     PROJECT_TYPE: 'PROJECT_TYPE'
 } as const;
 
-export interface ResourceInfo {
-    type: string;
-    binding: string;
-    id: pulumi.Output<string>;
-    name: string;
-    resource: pulumi.Resource;
-    isExisting: boolean;
-}
-
 export interface CLIOptions {
     stackName?: string;
     propertiesFile?: string;
     auto: boolean;
 }
-
-export interface KVNamespace {
-    id: string;
-    title: string;
-}
-
-export interface D1Database {
-    uuid: string;
-    name: string;
-}
-
-export interface PulumiStack {
-    name: string;
-    current?: boolean;
-}
-
-export interface ExistingResources {
-    kvId?: string;
-    d1Id?: string;
-}
-
-export interface ConfigMapping {
-    [key: string]: string;
-}
-

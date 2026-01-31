@@ -3,20 +3,18 @@ import {
     argsOf,
     CLIOptions,
     errorLog,
-    executeJson,
     executeRaw,
     extractStackName,
     getProcessEnv,
     isSecret,
     prompt,
     PROP,
-    PROJECT_DIR,
     PULUMI_DIR,
     propertyReader,
     pulumiConfig,
     pulumiUp,
     validatePassPhrase,
-    snakeToCamel
+    snakeToCamel, ensurePulumiLogin, ExecuteOptions,  isStackValid
 } from "./common/index.js";
 import * as fs from "fs";
 
@@ -24,45 +22,39 @@ async function setup(options: CLIOptions): Promise<void> {
     console.log('=================================');
     console.log('🎬 Infrastructure Setup');
     console.log('=================================\n');
-    const execOptions: { env?: NodeJS.ProcessEnv; cwd?: string; shell?: boolean; input?: string } =
-        {
-            shell: true,
-            cwd: PULUMI_DIR
-        };
     let setupProperties = await validateProperties(options.propertiesFile!, options.auto);
+    await ensurePulumiLogin();
     console.log(`🗓 Loading properties from: ${setupProperties}`);
-    let reader = propertyReader(setupProperties);
-
-    const requiredKeys: string[] = Object.values(PROP);
-    await validateKeys(reader,requiredKeys);
+    const reader = propertyReader(setupProperties);
+    await validateKeys(reader, Object.values(PROP));
+    const execOptions: ExecuteOptions = {
+        cwd: PULUMI_DIR,
+        env: {...process.env},
+        shell: false,
+        stdoutPipe: false
+    };
     execOptions.env = getProcessEnv(reader);
-    const passphrase = await validatePassPhrase(setupProperties, options.auto, execOptions.env);
+    const passphrase = await validatePassPhrase(options.auto, execOptions.env);
     if (passphrase) {
         execOptions.env.PULUMI_CONFIG_PASSPHRASE = passphrase;
     }
     let stackName = extractStackName(reader.getRaw(PROP.BASE_URL)!);
     console.log(`🗓 Using Stack :${stackName}`)
-
-    let stackList: any = await executeJson('pulumi', ['stack', 'ls', '--cwd', PULUMI_DIR, '--json'], execOptions);
-    const stackExists: boolean = stackList.some((s: any) => s.name === stackName);
-
+    const stackExists=await isStackValid(stackName,execOptions);
     console.log(`\n🗓 ${stackName} exists ${stackExists}`)
 
-    const cmdList = stackExists ? ['stack', 'select'] : ['stack', 'init'];
-    cmdList.push(stackName, '--cwd', PULUMI_DIR);
-    await executeRaw('pulumi', cmdList, execOptions);
-
-    await setupPulumiConfig(reader);
+    const cmdSetup = stackExists ? 'select' : 'init';
+    await executeRaw('pulumi', ['stack', cmdSetup, stackName, '--cwd', PULUMI_DIR], execOptions);
+    await setupPulumiConfig(reader, execOptions);
     console.log(`\n✅ Completed Pulumi Config Creation\n`);
-
-    await pulumiUp(options.auto,execOptions);
+    await pulumiUp(execOptions);
 }
 
-async function setupPulumiConfig(reader: Reader) {
+async function setupPulumiConfig(reader: Reader, execOptions: ExecuteOptions) {
     const keys = Object.keys(reader.getAllProperties());
     for (const key of keys) {
         const rawValue = reader.getRaw(key)!;
-        await pulumiConfig(snakeToCamel(key), rawValue, isSecret(key));
+        await pulumiConfig(snakeToCamel(key), rawValue, isSecret(key), execOptions);
     }
 }
 
@@ -83,14 +75,16 @@ async function validateProperties(propertiesFile: string, auto: boolean): Promis
     }
     return validPath;
 }
-async function validateKeys(reader:Reader, keys:string[]): Promise<void> {
+
+async function validateKeys(reader: Reader, keys: string[]): Promise<void> {
     for (let key of keys) {
         let value = reader.getRaw(key);
-        if(value == null){
+        if (value == null) {
             errorLog(`Missing Key ${key}`);
         }
     }
 }
+
 const options = argsOf();
 setup(options).catch((error: Error) => {
     console.error('❌ Setup failed:', error.message);

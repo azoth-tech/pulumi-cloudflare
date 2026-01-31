@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "setup": "tsx scripts/setup.ts",
+    "cleanup": "tsx scripts/cleanup.ts",
     "deploy": "tsx scripts/deploy.ts",
     "list": "tsx scripts/list.ts"
   },

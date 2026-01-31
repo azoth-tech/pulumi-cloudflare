@@ -3,7 +3,7 @@ import * as path from 'path';
 
 const targetFile = process.argv[2];
 if (!targetFile) {
-    console.error('Usage: tsx write-file.ts <target-path>');
+    console.error('Usage: tsx create-wrangler-toml.ts <target-path>');
     process.exit(1);
 }
 

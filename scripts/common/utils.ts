@@ -1,22 +1,14 @@
-/**
- * Shared Utility Functions for Infrastructure Scripts
- */
-
 import * as fs from 'fs';
-import {CLIOptions, ParsedResource, PROP} from './types.js';
-// @ts-ignore
+import {CLIOptions, ExecuteOptions, ParsedResource} from './types.js';
 import PropertiesReader from 'properties-reader';
 import {parseArgs} from 'util';
 import {execa} from 'execa';
 import {isCancel, text, TextOptions} from "@clack/prompts";
-import {Config, Output} from '@pulumi/pulumi';
+import {Config} from '@pulumi/pulumi';
 import * as path from 'path';
 import {dirname, resolve} from 'path';
 import {fileURLToPath} from "url";
 
-export const MAX_RETRY_ATTEMPTS = 6;
-export const RETRY_DELAY_SECONDS = 10;
-export const COMMAND_TIMEOUT_MS = 30000; // 30 seconds
 export const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const PULUMI_DIR = path.join(PROJECT_DIR, "pulumi");
 
@@ -25,9 +17,7 @@ console.log(`🗂 projectRoot:${PROJECT_DIR} \n🗂 pulumiDir: ${PULUMI_DIR}`)
 
 export async function executeRaw(
     command: string, args: string[] = [],
-    options: {
-        cwd?: string; env?: NodeJS.ProcessEnv; shell?: boolean; input?: string;
-    } = {}
+    options: ExecuteOptions = {stdoutPipe: false}
 ): Promise<string | undefined> {
     console.log(`  🏄‍♂️ ${command} ${args.join(' ')}`);
     const env = {...process.env, ...options.env};
@@ -39,7 +29,10 @@ export async function executeRaw(
             killSignal: 'SIGTERM',
             shell: options.shell,
             input: options.input,
-            stdio: options.input ? ['pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe']
+            stdin: options.input ? 'pipe' : 'inherit',
+            stdout: options.stdoutPipe ? 'pipe' : 'inherit',
+            stderr: 'inherit',
+
         });
         return stdout;
     } catch (error: any) {
@@ -50,28 +43,22 @@ export async function executeRaw(
 }
 
 export async function executeJson(
-    command: string, args: string[] = [],
-    options: {
-        cwd?: string; env?: NodeJS.ProcessEnv; shell?: boolean; input?: string;
-    } = {}
-): Promise<any> {
-    let output = await executeRaw(command, args, options);
+    command: string, args: string[] = [], options: ExecuteOptions): Promise<any> {
+    const execOptions: ExecuteOptions = {
+        ...options,
+        stdoutPipe: true,
+    };
+    let output = await executeRaw(command, args, execOptions);
     return JSON.parse(output || '{}');
 }
 
-export async function pulumiConfig(key: string, value: string, isSecret = false): Promise<void> {
-    const options = {
-        env: {...process.env},
-        input: value,
-        shell: true
-    }
-    const secretFlag = isSecret ? '--secret' : '';
-    await executeRaw('pulumi', ['config', 'set', key, secretFlag, '--cwd', PULUMI_DIR], options);
+export async function pulumiConfig(key: string, value: string, isSecret = false, options: ExecuteOptions): Promise<void> {
+    const secretFlag = isSecret ? '--secret' : '--plaintext';
+    await executeRaw('pulumi', ['config', 'set', key, value, secretFlag, '--cwd', PULUMI_DIR, '--non-interactive'], options);
 }
 
-export async function pulumiUp(auto: boolean = false, options:any):
-    Promise<void> {
-    await executeRaw(`npx pulumi`, ['up', '--yes', '--cwd', PULUMI_DIR,'--verbose=0'], options);
+export async function pulumiUp(options: any): Promise<void> {
+    await executeRaw(`pulumi`, ['up', '--yes', '--cwd', PULUMI_DIR, '--skip-preview'], options);
 }
 
 export function isSecret(key: string): boolean {
@@ -87,10 +74,6 @@ export function propertyReader(filePath: string): PropertiesReader.Reader {
         throw new Error(`Properties file not found: ${filePath}`);
     }
     return PropertiesReader(filePath);
-}
-
-export function getProperty(filePath: string, key: string): string {
-    return propertyReader(filePath).getRaw(key) ?? '';
 }
 
 
@@ -112,12 +95,6 @@ export function argsOf(): CLIOptions {
     };
 }
 
-
-export function getStackName(filePath: string): string {
-    let baseurl = getProperty(filePath, PROP.BASE_URL);
-    return extractStackName(baseurl);
-}
-
 export function extractStackName(baseUrl: string): string {
     try {
         const url = new URL(baseUrl);
@@ -136,7 +113,7 @@ export function camelToSnake(str: string): string {
     return str
         .replace(/([A-Z])/g, '_$1')
         .toUpperCase()
-        .replace(/^_/, ''); // Remove leading underscore if present
+        .replace(/^_/, '');
 }
 
 export function errorLog(str: string): string {
@@ -144,7 +121,7 @@ export function errorLog(str: string): string {
     process.exit(1);
 }
 
-export async function validatePassPhrase(propertiesFile: string, auto: boolean, env: NodeJS.ProcessEnv = process.env): Promise<string | undefined> {
+export async function validatePassPhrase(auto: boolean, env: NodeJS.ProcessEnv = process.env): Promise<string | undefined> {
     if (env.PULUMI_CONFIG_PASSPHRASE || env.PULUMI_CONFIG_PASSPHRASE_FILE) {
         return env.PULUMI_CONFIG_PASSPHRASE;
     }
@@ -153,11 +130,10 @@ export async function validatePassPhrase(propertiesFile: string, auto: boolean, 
         errorLog('PULUMI_CONFIG_PASSPHRASE environment variable is not set');
     }
 
-    const passphrase = await prompt({
+    return await prompt({
         message: 'Enter PULUMI_CONFIG_PASSPHRASE:',
         placeholder: 'Enter your Pulumi stack passphrase'
     });
-    return passphrase;
 }
 
 export async function prompt(options: TextOptions): Promise<string> {
@@ -168,7 +144,12 @@ export async function prompt(options: TextOptions): Promise<string> {
     return userResponse;
 }
 
+export async function isStackValid(stackName:string,options:ExecuteOptions):Promise<boolean>{
 
+    let stackList: any = await executeJson('pulumi', ['stack', 'ls', '--cwd', PULUMI_DIR, '--json'], options);
+    console.log("stackList:" + JSON.stringify(stackList));
+    return stackList.some((s: any) => s.name === stackName);
+}
 export function pulumiProperty(config: Config, key: string): string {
     const pulumiKey = snakeToCamel(key);
     const response = config.get(pulumiKey);
@@ -183,9 +164,10 @@ export function parseResource(spec: string): ParsedResource {
     return {prefix: prefix, name: name};
 }
 
+
 export const createResourceInfo =
-    (resourceType: string, resource: any, binding: string) =>
-        ({type: resourceType, resource, binding});
+    (resourceType: string, resource: any, binding: string, existing: boolean = false) =>
+        ({type: resourceType, resource, binding, existing});
 
 export function extractBinding(input: string): string {
     if (!input) return '';
@@ -197,6 +179,7 @@ export function extractBinding(input: string): string {
         ? mainPart.slice(underscoreIndex + 1).toUpperCase()
         : '';
 }
+
 export function getD1DbName(cloudflareResource: string, projectId: string): string | undefined {
     const d1SpecList = cloudflareResource
         .split(',')
