@@ -13,7 +13,7 @@ import {
     pulumiProperty,
     snakeToCamel,
 } from "./common/index.js";
-import {createD1Toml, createKVToml, createToml, createVarsToml} from "./common/templateutils.js";
+import { createD1Toml, createKVToml, createToml, createVarsToml } from "./common/templateutils.js";
 
 const config = new pulumi.Config();
 const stackName = pulumi.getStack();
@@ -56,7 +56,7 @@ async function createCloudFlareResources(accountId: string, resources: string[],
             const d1Resource = new cloudflare.D1Database(resourceName, {
                 accountId: accountId,
                 name: resourceName,
-                readReplication: {mode: 'disabled'}
+                readReplication: { mode: 'disabled' }
             });
             response.d1!.push(createResourceInfo(resourceType, d1Resource, binding));
         } else if (resourceType.startsWith('r2_')) {
@@ -101,7 +101,7 @@ const createWranglerToml = new command.local.Command(
         stdin: finalToml,
         dir: projectRoot,
     },
-    {dependsOn: resourceObjects}
+    { dependsOn: resourceObjects }
 );
 
 let d1DbName = getD1DbName(cloudFlareResource, projectId);
@@ -118,7 +118,7 @@ const applySchema = d1DbName ? new command.local.Command(
         },
         triggers: [new Date().toISOString()],
     },
-    {dependsOn: [createWranglerToml]}
+    { dependsOn: [createWranglerToml] }
 ) : undefined;
 
 if (projectType == 'worker') {
@@ -134,6 +134,6 @@ if (projectType == 'worker') {
             },
             triggers: [new Date().toISOString()],
         },
-        {dependsOn: createWranglerToml}
+        { dependsOn: createWranglerToml }
     );
 }

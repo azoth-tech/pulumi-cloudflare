@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "setup": "tsx scripts/setup.ts",
-    "cleanup": "tsx scripts/cleanup.ts",
-    "deploy": "tsx scripts/deploy.ts",
-    "list": "tsx scripts/list.ts"
+    "setup": "tsx -- scripts/setup.ts",
+    "cleanup": "tsx -- scripts/cleanup.ts",
+    "deploy": "tsx -- scripts/deploy.ts",
+    "list": "tsx -- scripts/list.ts"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",

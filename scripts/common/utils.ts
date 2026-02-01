@@ -1,13 +1,14 @@
 import * as fs from 'fs';
-import {CLIOptions, ExecuteOptions, ParsedResource} from './types.js';
+import { CLIOptions, ExecuteOptions, ParsedResource } from './types.js';
 import PropertiesReader from 'properties-reader';
-import {parseArgs} from 'util';
-import {execa} from 'execa';
-import {isCancel, text, TextOptions} from "@clack/prompts";
-import {Config} from '@pulumi/pulumi';
+import { parseArgs } from 'util';
+import { execa } from 'execa';
+import { isCancel, text, TextOptions } from "@clack/prompts";
+import { Config } from '@pulumi/pulumi';
 import * as path from 'path';
-import {dirname, resolve} from 'path';
-import {fileURLToPath} from "url";
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from "url";
+import { input } from '@pulumi/cloudflare/types/index.js';
 
 export const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 export const PULUMI_DIR = path.join(PROJECT_DIR, "pulumi");
@@ -17,19 +18,19 @@ console.log(`🗂 projectRoot:${PROJECT_DIR} \n🗂 pulumiDir: ${PULUMI_DIR}`)
 
 export async function executeRaw(
     command: string, args: string[] = [],
-    options: ExecuteOptions = {stdoutPipe: false}
+    options: ExecuteOptions = { stdoutPipe: false }
 ): Promise<string | undefined> {
     console.log(`  🏄‍♂️ ${command} ${args.join(' ')}`);
-    const env = {...process.env, ...options.env};
+    const env = { ...process.env, ...options.env };
     try {
-        const {stdout} = await execa(command, args, {
+        const { stdout } = await execa(command, args, {
             cwd: options.cwd,
             env: env,
             timeout: 60000,
             killSignal: 'SIGTERM',
             shell: options.shell,
             input: options.input,
-            stdin: options.input ? 'pipe' : 'inherit',
+            stdin: options.input !== undefined ? 'pipe' : 'inherit',
             stdout: options.stdoutPipe ? 'pipe' : 'inherit',
             stderr: 'inherit',
 
@@ -53,8 +54,13 @@ export async function executeJson(
 }
 
 export async function pulumiConfig(key: string, value: string, isSecret = false, options: ExecuteOptions): Promise<void> {
+    const custoptions = {
+        ...options,
+        input: value,
+        stdoutPipe: true
+    }
     const secretFlag = isSecret ? '--secret' : '--plaintext';
-    await executeRaw('pulumi', ['config', 'set', key, value, secretFlag, '--cwd', PULUMI_DIR, '--non-interactive'], options);
+    await executeRaw('pulumi', ['config', 'set', key, secretFlag, '--cwd', PULUMI_DIR], custoptions);
 }
 
 export async function pulumiUp(options: any): Promise<void> {
@@ -63,7 +69,7 @@ export async function pulumiUp(options: any): Promise<void> {
 
 export function isSecret(key: string): boolean {
     const lowerKey = key.toLowerCase();
-    return ['key', 'secret', 'token', 'password'].some(keyword =>
+    return ['key', 'secret', 'token', 'api_key', 'password'].some(keyword =>
         lowerKey.includes(keyword)
     );
 }
@@ -78,12 +84,12 @@ export function propertyReader(filePath: string): PropertiesReader.Reader {
 
 
 export function argsOf(): CLIOptions {
-    const {values, positionals} = parseArgs({
+    const { values, positionals } = parseArgs({
         args: process.argv.slice(2),
         options: {
-            stack: {type: 'string', short: 's'},
-            properties: {type: 'string', short: 'p'},
-            auto: {type: 'boolean', short: 'y'},
+            stack: { type: 'string', short: 's' },
+            properties: { type: 'string', short: 'p' },
+            auto: { type: 'boolean', short: 'y' },
         },
         allowPositionals: true
     });
@@ -144,7 +150,7 @@ export async function prompt(options: TextOptions): Promise<string> {
     return userResponse;
 }
 
-export async function isStackValid(stackName:string,options:ExecuteOptions):Promise<boolean>{
+export async function isStackValid(stackName: string, options: ExecuteOptions): Promise<boolean> {
 
     let stackList: any = await executeJson('pulumi', ['stack', 'ls', '--cwd', PULUMI_DIR, '--json'], options);
     console.log("stackList:" + JSON.stringify(stackList));
@@ -161,13 +167,13 @@ export function pulumiProperty(config: Config, key: string): string {
 
 export function parseResource(spec: string): ParsedResource {
     const [prefix, name] = spec.split(":").map(s => s.trim());
-    return {prefix: prefix, name: name};
+    return { prefix: prefix, name: name };
 }
 
 
 export const createResourceInfo =
     (resourceType: string, resource: any, binding: string, existing: boolean = false) =>
-        ({type: resourceType, resource, binding, existing});
+        ({ type: resourceType, resource, binding, existing });
 
 export function extractBinding(input: string): string {
     if (!input) return '';
