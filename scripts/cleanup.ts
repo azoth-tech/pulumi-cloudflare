@@ -54,7 +54,7 @@ async function cleanup(options: CLIOptions): Promise<void> {
     const wranglerTomlFile = path.join(PULUMI_DIR, "instances", stackName, 'wrangler.toml');
     console.log(`Started Clean Up using accountId ${accountId}, projectId ${projectId}, Stack:${stackName} `)
     // wrangler delete --config ${wranglerTomlFile}
-    await executeRaw('wrangler', ['delete', projectId!, '--config', wranglerTomlFile], optsWithEnv);
+    // await executeRaw('wrangler', ['delete', projectId!, '--config', wranglerTomlFile], optsWithEnv);
     optsWithEnv.stdoutPipe=false;
     await executeRaw('pulumi', ['destroy', '--stack', stackName, '--remove', '--cwd', PULUMI_DIR, '--yes', '--skip-preview'], optsWithEnv);
     // pulumi stack rm -s <stack>

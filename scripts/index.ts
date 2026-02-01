@@ -9,11 +9,14 @@ import {
     getD1DbName,
     ParsedResource,
     parseResource,
-    PROP, PROJECT_DIR, PULUMI_DIR,
+    PROJECT_DIR,
+    PROP,
+    PULUMI_DIR,
     pulumiProperty,
     snakeToCamel,
 } from "./common/index.js";
-import { createD1Toml, createKVToml, createToml, createVarsToml } from "./common/templateutils.js";
+import {createD1Toml, createKVToml, createToml, createVarsToml} from "./common/templateutils.js";
+import {createWorkerBindings} from "./common/secret-binding.js";
 
 const config = new pulumi.Config();
 const stackName = pulumi.getStack();
@@ -56,7 +59,7 @@ async function createCloudFlareResources(accountId: string, resources: string[],
             const d1Resource = new cloudflare.D1Database(resourceName, {
                 accountId: accountId,
                 name: resourceName,
-                readReplication: { mode: 'disabled' }
+                readReplication: {mode: 'disabled'}
             });
             response.d1!.push(createResourceInfo(resourceType, d1Resource, binding));
         } else if (resourceType.startsWith('r2_')) {
@@ -101,7 +104,7 @@ const createWranglerToml = new command.local.Command(
         stdin: finalToml,
         dir: projectRoot,
     },
-    { dependsOn: resourceObjects }
+    {dependsOn: resourceObjects}
 );
 
 let d1DbName = getD1DbName(cloudFlareResource, projectId);
@@ -118,10 +121,27 @@ const applySchema = d1DbName ? new command.local.Command(
         },
         triggers: [new Date().toISOString()],
     },
-    { dependsOn: [createWranglerToml] }
+    {dependsOn: [createWranglerToml]}
 ) : undefined;
 
+let deployment = [];
 if (projectType == 'worker') {
+
+    const bindings = createWorkerBindings(config);
+    console.log("Binding:"+bindings)
+    const worker = new cloudflare.WorkerScript(projectId, {
+        accountId: accountId,
+        content: `
+                    addEventListener("fetch", event => {
+                        event.respondWith(new Response("Hello world"))
+                    });
+                `,
+        scriptName: projectId,
+        bindings: bindings
+
+    });
+
+
     const deployWorker = new command.local.Command(
         'deploy-worker',
         {
@@ -134,6 +154,7 @@ if (projectType == 'worker') {
             },
             triggers: [new Date().toISOString()],
         },
-        { dependsOn: createWranglerToml }
+        {dependsOn: [worker, createWranglerToml]}
     );
+    deployment.push(deployWorker);
 }

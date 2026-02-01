@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { CLIOptions, ExecuteOptions, ParsedResource } from './types.js';
+import {CLIOptions, ExecuteOptions, ParsedResource, PROP} from './types.js';
 import PropertiesReader from 'properties-reader';
 import { parseArgs } from 'util';
 import { execa } from 'execa';
@@ -14,6 +14,22 @@ export const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../
 export const PULUMI_DIR = path.join(PROJECT_DIR, "pulumi");
 
 console.log(`🗂 projectRoot:${PROJECT_DIR} \n🗂 pulumiDir: ${PULUMI_DIR}`)
+export const IGNORE_PROP_LIST: ReadonlySet<string> = new Set([
+    PROP.CLOUDFLARE_RESOURCE,
+    PROP.CLOUDFLARE_API_TOKEN,
+    PROP.CLOUDFLARE_ACCOUNT_ID,
+    PROP.PROJECT_ID
+]);
+
+export const SECRET_PATTERN_LIST = [
+    'secret',
+    'key',
+    'password',
+    'token',
+    'credential',
+    'apikey',
+    'api_key',
+];
 
 
 export async function executeRaw(
@@ -66,14 +82,16 @@ export async function pulumiConfig(key: string, value: string, isSecret = false,
 export async function pulumiUp(options: any): Promise<void> {
     await executeRaw(`pulumi`, ['up', '--yes', '--cwd', PULUMI_DIR, '--skip-preview'], options);
 }
-
 export function isSecret(key: string): boolean {
     const lowerKey = key.toLowerCase();
-    return ['key', 'secret', 'token', 'api_key', 'password'].some(keyword =>
+    return SECRET_PATTERN_LIST.some(keyword =>
         lowerKey.includes(keyword)
     );
 }
-
+export function getConfigKey(rawKey: string): { snakeKey: string; camelKey: string } {
+    const cleanKey = rawKey.includes(":") ? rawKey.split(":")[1] : rawKey;
+    return {snakeKey:camelToSnake(cleanKey),camelKey: cleanKey};
+}
 
 export function propertyReader(filePath: string): PropertiesReader.Reader {
     if (!fs.existsSync(filePath)) {

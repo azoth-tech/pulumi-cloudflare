@@ -1,5 +1,5 @@
-import { PROP, TypedResource} from "./types.js";
-import {camelToSnake, isSecret} from "./utils.js";
+import {TypedResource} from "./types.js";
+import {getConfigKey, IGNORE_PROP_LIST, isSecret} from "./utils.js";
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
 import Handlebars from 'handlebars';
@@ -73,22 +73,15 @@ export function createKVToml(kvList: TypedResource<cloudflare.WorkersKvNamespace
 }
 
 export function createVarsToml(config: Record<string, unknown>): string {
-    const ignoreList: ReadonlySet<string> = new Set([
-        PROP.CLOUDFLARE_RESOURCE,
-        PROP.CLOUDFLARE_API_TOKEN,
-        PROP.CLOUDFLARE_ACCOUNT_ID,
-        PROP.PROJECT_ID
-    ]);
 
     const vars = Object.entries(config)
         .map(([key, value]) => {
-            const cleanKey = key.includes(":") ? key.split(":")[1] : key;
-            const snakeKey = camelToSnake(cleanKey);
-            if (ignoreList.has(snakeKey) || isSecret(snakeKey)) {
+            const configKey = getConfigKey(key);
+            if (IGNORE_PROP_LIST.has(configKey.snakeKey) || isSecret(configKey.snakeKey)) {
                 return null;
             }
             const tomlValue = formatTomlValue(value);
-            return tomlValue ? `${snakeKey} = ${tomlValue}` : null;
+            return tomlValue ? `${configKey.snakeKey} = ${tomlValue}` : null;
         })
         .filter((line): line is string => line !== null);
 
