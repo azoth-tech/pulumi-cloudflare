@@ -10,6 +10,7 @@ import {
     snakeToCamel
 } from "./common/index.js";
 import path from "path";
+import { unlink, rmdir, rm, stat } from 'fs/promises';
 
 
 async function cleanup(options: CLIOptions): Promise<void> {
@@ -53,13 +54,29 @@ async function cleanup(options: CLIOptions): Promise<void> {
     };
     const wranglerTomlFile = path.join(PULUMI_DIR, "instances", stackName, 'wrangler.toml');
     console.log(`Started Clean Up using accountId ${accountId}, projectId ${projectId}, Stack:${stackName} `)
-    // wrangler delete --config ${wranglerTomlFile}
-    // await executeRaw('wrangler', ['delete', projectId!, '--config', wranglerTomlFile], optsWithEnv);
-    optsWithEnv.stdoutPipe=false;
+    optsWithEnv.stdoutPipe = false;
     await executeRaw('pulumi', ['destroy', '--stack', stackName, '--remove', '--cwd', PULUMI_DIR, '--yes', '--skip-preview'], optsWithEnv);
     // pulumi stack rm -s <stack>
+    await deleteAny(path.join(PULUMI_DIR, "instances", stackName));
 
-
+}
+async function deleteAny(filePath: string): Promise<void> {
+    try {
+        const stats = await stat(filePath);
+        if (stats.isDirectory()) {
+            await rm(filePath, { recursive: true, force: true });
+            console.log(`Deleted directory: ${filePath}`);
+        } else {
+            await unlink(filePath);
+            console.log(`Deleted file: ${filePath}`);
+        }
+    } catch (error: any) {
+        if (error.code === 'ENOENT') {
+            console.log(`Path does not exist: ${filePath}`);
+        } else {
+            throw error;
+        }
+    }
 }
 
 async function validateStack(stackName: string, execOptions: ExecuteOptions): Promise<void> {

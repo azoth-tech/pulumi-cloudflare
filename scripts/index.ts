@@ -129,11 +129,11 @@ if (projectType == 'worker') {
 
     const bindings = createWorkerBindings(config);
     console.log("Binding:"+bindings)
-    const worker = new cloudflare.WorkerScript(projectId, {
+    const worker = new cloudflare.WorkersScript(projectId, {
         accountId: accountId,
         content: `
                     addEventListener("fetch", event => {
-                        event.respondWith(new Response("Hello world"))
+                        event.respondWith(new Response("Hello world Script"))
                     });
                 `,
         scriptName: projectId,
