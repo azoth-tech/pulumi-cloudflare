@@ -30,6 +30,8 @@ console.log(`🗂 Pulumi Config instanceDir: ${instanceDir}`)
 const projectId = pulumiProperty(config, PROP.PROJECT_ID);
 const projectType = pulumiProperty(config, PROP.PROJECT_TYPE);
 const cloudFlareResource = pulumiProperty(config, PROP.CLOUDFLARE_RESOURCE)!;
+const environment = pulumiProperty(config, PROP.ENVIRONMENT);
+
 const apiToken = config.requireSecret(snakeToCamel(PROP.CLOUDFLARE_API_TOKEN));
 const accountId = config.require(snakeToCamel(PROP.CLOUDFLARE_ACCOUNT_ID));
 
@@ -128,7 +130,7 @@ let deployment = [];
 if (projectType == 'worker') {
 
     const bindings = createWorkerBindings(config);
-    console.log("Binding:"+bindings)
+    console.log("Binding:" + bindings)
     const worker = new cloudflare.WorkersScript(projectId, {
         accountId: accountId,
         content: `
@@ -140,7 +142,6 @@ if (projectType == 'worker') {
         bindings: bindings
 
     });
-
 
     const deployWorker = new command.local.Command(
         'deploy-worker',
@@ -157,4 +158,37 @@ if (projectType == 'worker') {
         {dependsOn: [worker, createWranglerToml]}
     );
     deployment.push(deployWorker);
+}
+if (projectType == 'pages') {
+    const pagesProject = new cloudflare.PagesProject(projectId, {
+        accountId: accountId,
+        name: projectId,
+        productionBranch: environment,
+        buildConfig: {
+            buildCommand: "npm run build",
+            destinationDir: "dist",
+        }
+    });
+
+    const plainTextEnvProps = pulumi
+        .all(createWorkerBindings(config))
+        .apply(bindings =>
+            Object.fromEntries(
+                bindings
+                    .filter(b => b.type === "plain_text")
+                    .map(b => [`VITE_${b.name}`, b.text ?? ""]) // ensure no undefined
+            )
+        );
+
+    const buildDeployPages = new command.local.Command(
+        'build-deploy-pages',
+        {
+            create: pulumi.interpolate`npx tsx "./pulumi-cloudflare/scripts/wrangler-pages-deploy.ts" "${projectId}" "${environment}"`,
+            dir: projectRoot,
+            environment: plainTextEnvProps,
+            triggers: [new Date().toISOString()],
+
+        }, {dependsOn: [...resourceObjects, pagesProject]}
+    )
+
 }
