@@ -17,13 +17,14 @@ export interface TypedResource<T> {
     type: string;
     resource: T;
     binding?: string;
-    existing:boolean;
+    existing: boolean;
 }
 
 export interface CloudflareResources {
     kv: TypedResource<cloudflare.WorkersKvNamespace>[]; // **not optional**
     d1: TypedResource<cloudflare.D1Database>[];
     r2: TypedResource<cloudflare.R2Bucket>[];
+    ai?: boolean;
 }
 
 export interface ExecuteOptions {
@@ -41,7 +42,7 @@ export const PROP = {
     BASE_URL: 'BASE_URL',
     PROJECT_ID: 'PROJECT_ID',
     PROJECT_TYPE: 'PROJECT_TYPE',
-    ENVIRONMENT:'ENVIRONMENT'
+    ENVIRONMENT: 'ENVIRONMENT'
 } as const;
 
 export interface CLIOptions {

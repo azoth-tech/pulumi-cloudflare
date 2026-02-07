@@ -1,5 +1,5 @@
-import {TypedResource} from "./types.js";
-import {getConfigKey, IGNORE_PROP_LIST, isSecret} from "./utils.js";
+import { TypedResource } from "./types.js";
+import { getConfigKey, IGNORE_PROP_LIST, isSecret } from "./utils.js";
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
 import Handlebars from 'handlebars';
@@ -18,6 +18,7 @@ head_sampling_rate = 1
 {{d1Value}}
 {{kvValue}}
 {{r2Value}}
+{{aiValue}}
 {{varsValue}}
  `.trim();
 
@@ -55,8 +56,8 @@ export function createD1Toml(d1List: TypedResource<cloudflare.D1Database>[]): pu
             name,
             id,
         }));
-        const template = Handlebars.compile(d1TemplateStr, {noEscape: true});
-        return template({items});
+        const template = Handlebars.compile(d1TemplateStr, { noEscape: true });
+        return template({ items });
     });
 }
 
@@ -67,8 +68,8 @@ export function createKVToml(kvList: TypedResource<cloudflare.WorkersKvNamespace
             name: title,
             id,
         }));
-        const template = Handlebars.compile(kvTemplateStr, {noEscape: true});
-        return template({items});
+        const template = Handlebars.compile(kvTemplateStr, { noEscape: true });
+        return template({ items });
     });
 }
 
@@ -101,14 +102,15 @@ function formatTomlValue(value: unknown): string | undefined {
             return undefined;
     }
 }
-export function createToml(projId: string, accountId: string, d1Value: string, kvValue: string, r2Value: string, varsValue: string): string {
-    const template = Handlebars.compile(tomlTemplate, {noEscape: true});
+export function createToml(projId: string, accountId: string, d1Value: string, kvValue: string, r2Value: string, varsValue: string, aiValue: string): string {
+    const template = Handlebars.compile(tomlTemplate, { noEscape: true });
     return template({
         projectId: projId,
         accountId,
         d1Value,
         kvValue,
         r2Value,
-        varsValue
+        varsValue,
+        aiValue
     });
 }

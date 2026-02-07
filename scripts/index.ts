@@ -15,8 +15,8 @@ import {
     pulumiProperty,
     snakeToCamel,
 } from "./common/index.js";
-import {createD1Toml, createKVToml, createToml, createVarsToml} from "./common/templateutils.js";
-import {createWorkerBindings} from "./common/secret-binding.js";
+import { createD1Toml, createKVToml, createToml, createVarsToml } from "./common/templateutils.js";
+import { createWorkerBindings } from "./common/secret-binding.js";
 
 const config = new pulumi.Config();
 const stackName = pulumi.getStack();
@@ -40,7 +40,7 @@ const resources = cloudFlareResource.split(',').map(r => r.trim());
 
 async function createCloudFlareResources(accountId: string, resources: string[], projectId: string): Promise<CloudflareResources> {
     let response: CloudflareResources = {
-        kv: [], d1: [], r2: []
+        kv: [], d1: [], r2: [], ai: false
     };
     for (const resourceType of resources) {
         let inputResource: ParsedResource = parseResource(resourceType);
@@ -61,7 +61,7 @@ async function createCloudFlareResources(accountId: string, resources: string[],
             const d1Resource = new cloudflare.D1Database(resourceName, {
                 accountId: accountId,
                 name: resourceName,
-                readReplication: {mode: 'disabled'}
+                readReplication: { mode: 'disabled' }
             });
             response.d1!.push(createResourceInfo(resourceType, d1Resource, binding));
         } else if (resourceType.startsWith('r2_')) {
@@ -71,6 +71,8 @@ async function createCloudFlareResources(accountId: string, resources: string[],
                 name: resourceName
             });
             response.r2!.push(createResourceInfo(resourceType, r2Resource, binding));
+        } else if (resourceType === 'ai') {
+            response.ai = true;
         }
     }
     return response;
@@ -80,11 +82,12 @@ function createFinalToml(cloudflareResouces: CloudflareResources, projectId: str
     const d1Value = createD1Toml(cloudflareResouces.d1);
     const kvValue = createKVToml(cloudflareResouces.kv);
     const r2Value = '';
+    const aiValue = cloudflareResouces.ai ? '[ai]\nbinding = "AI"' : '';
     let allConfig = pulumi.runtime.allConfig()
     const varsValue = createVarsToml(allConfig);
 
     return pulumi.all([d1Value, kvValue]).apply(([resolvedD1, resolvedKv]) => {
-        return createToml(projectId, accountId, resolvedD1, resolvedKv, r2Value, varsValue);
+        return createToml(projectId, accountId, resolvedD1, resolvedKv, r2Value, varsValue, aiValue);
     });
 }
 
@@ -106,7 +109,7 @@ const createWranglerToml = new command.local.Command(
         stdin: finalToml,
         dir: projectRoot,
     },
-    {dependsOn: resourceObjects}
+    { dependsOn: resourceObjects }
 );
 
 let d1DbName = getD1DbName(cloudFlareResource, projectId);
@@ -123,7 +126,7 @@ const applySchema = d1DbName ? new command.local.Command(
         },
         triggers: [new Date().toISOString()],
     },
-    {dependsOn: [createWranglerToml]}
+    { dependsOn: [createWranglerToml] }
 ) : undefined;
 
 let deployment = [];
@@ -155,7 +158,7 @@ if (projectType == 'worker') {
             },
             triggers: [new Date().toISOString()],
         },
-        {dependsOn: [worker, createWranglerToml]}
+        { dependsOn: [worker, createWranglerToml] }
     );
     deployment.push(deployWorker);
 }
@@ -188,7 +191,7 @@ if (projectType == 'pages') {
             environment: plainTextEnvProps,
             triggers: [new Date().toISOString()],
 
-        }, {dependsOn: [...resourceObjects, pagesProject]}
+        }, { dependsOn: [...resourceObjects, pagesProject] }
     )
 
 }
