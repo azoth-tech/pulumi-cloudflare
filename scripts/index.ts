@@ -31,6 +31,7 @@ const projectId = pulumiProperty(config, PROP.PROJECT_ID);
 const projectType = pulumiProperty(config, PROP.PROJECT_TYPE);
 const cloudFlareResource = pulumiProperty(config, PROP.CLOUDFLARE_RESOURCE)!;
 const environment = pulumiProperty(config, PROP.ENVIRONMENT);
+const customDomain = pulumiProperty(config, 'CUSTOM_DOMAIN') ?? '';
 
 const apiToken = config.requireSecret(snakeToCamel(PROP.CLOUDFLARE_API_TOKEN));
 const accountId = config.require(snakeToCamel(PROP.CLOUDFLARE_ACCOUNT_ID));
@@ -195,7 +196,7 @@ if (projectType == 'pages') {
     const buildDeployPages = new command.local.Command(
         'build-deploy-pages',
         {
-            create: pulumi.interpolate`npx tsx "./pulumi-cloudflare/scripts/wrangler-pages-deploy.ts" "${projectId}" "${environment}"`,
+            create: pulumi.interpolate`npx tsx "./pulumi-cloudflare/scripts/wrangler-pages-deploy.ts" "${projectId}" "${environment}" ${customDomain}`,
             dir: projectRoot,
             environment: plainTextEnvProps,
             triggers: [new Date().toISOString()],
