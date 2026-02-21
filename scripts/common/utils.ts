@@ -42,7 +42,7 @@ export async function executeRaw(
         const { stdout } = await execa(command, args, {
             cwd: options.cwd,
             env: env,
-            timeout: 60000,
+            timeout: 300000,
             killSignal: 'SIGTERM',
             shell: options.shell,
             input: options.input,
