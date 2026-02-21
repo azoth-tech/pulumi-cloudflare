@@ -7,6 +7,8 @@ const deployProjectId = process.argv[2];
 const deployEnv = process.argv[3];
 const customDomain = process.argv[4]; // optional
 
+console.log(`Deploying project ${deployProjectId} to environment ${deployEnv} using Custom Domain ${customDomain}`);
+
 if (!deployProjectId || !deployEnv) {
     console.error('Usage: tsx wrangler-pages-deploy.ts <deploy-project-id> <deploy-env> [custom-domain]');
     process.exit(1);

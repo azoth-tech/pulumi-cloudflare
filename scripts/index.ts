@@ -16,7 +16,7 @@ import {
     snakeToCamel,
 } from "./common/index.js";
 import {createD1Toml, createKVToml, createRoutesToml, createToml, createVarsToml} from "./common/templateutils.js";
-import { createWorkerBindings } from "./common/secret-binding.js";
+import {createWorkerBindings} from "./common/secret-binding.js";
 
 const config = new pulumi.Config();
 const stackName = pulumi.getStack();
@@ -31,7 +31,7 @@ const projectId = pulumiProperty(config, PROP.PROJECT_ID);
 const projectType = pulumiProperty(config, PROP.PROJECT_TYPE);
 const cloudFlareResource = pulumiProperty(config, PROP.CLOUDFLARE_RESOURCE)!;
 const environment = pulumiProperty(config, PROP.ENVIRONMENT);
-const customDomain =config.get(snakeToCamel("CUSTOM_DOMAIN")) ?? '';
+const customDomain = config.get(snakeToCamel("CUSTOM_DOMAIN"));
 
 const apiToken = config.requireSecret(snakeToCamel(PROP.CLOUDFLARE_API_TOKEN));
 const accountId = config.require(snakeToCamel(PROP.CLOUDFLARE_ACCOUNT_ID));
@@ -62,7 +62,7 @@ async function createCloudFlareResources(accountId: string, resources: string[],
             const d1Resource = new cloudflare.D1Database(resourceName, {
                 accountId: accountId,
                 name: resourceName,
-                readReplication: { mode: 'disabled' }
+                readReplication: {mode: 'disabled'}
             });
             response.d1!.push(createResourceInfo(resourceType, d1Resource, binding));
         } else if (resourceType.startsWith('r2_')) {
@@ -119,7 +119,7 @@ const createWranglerToml = new command.local.Command(
         stdin: finalToml,
         dir: projectRoot,
     },
-    { dependsOn: resourceObjects }
+    {dependsOn: resourceObjects}
 );
 
 let d1DbName = getD1DbName(cloudFlareResource, projectId);
@@ -136,7 +136,7 @@ const applySchema = d1DbName ? new command.local.Command(
         },
         triggers: [new Date().toISOString()],
     },
-    { dependsOn: [createWranglerToml] }
+    {dependsOn: [createWranglerToml]}
 ) : undefined;
 
 let deployment = [];
@@ -168,7 +168,7 @@ if (projectType == 'worker') {
             },
             triggers: [new Date().toISOString()],
         },
-        { dependsOn: [worker, createWranglerToml] }
+        {dependsOn: [worker, createWranglerToml]}
     );
     deployment.push(deployWorker);
 }
@@ -201,7 +201,7 @@ if (projectType == 'pages') {
             environment: plainTextEnvProps,
             triggers: [new Date().toISOString()],
 
-        }, { dependsOn: [...resourceObjects, pagesProject] }
+        }, {dependsOn: [...resourceObjects, pagesProject]}
     )
 
 }
