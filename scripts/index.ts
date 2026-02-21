@@ -15,7 +15,7 @@ import {
     pulumiProperty,
     snakeToCamel,
 } from "./common/index.js";
-import { createD1Toml, createKVToml, createToml, createVarsToml } from "./common/templateutils.js";
+import {createD1Toml, createKVToml, createRoutesToml, createToml, createVarsToml} from "./common/templateutils.js";
 import { createWorkerBindings } from "./common/secret-binding.js";
 
 const config = new pulumi.Config();
@@ -83,11 +83,15 @@ function createFinalToml(cloudflareResouces: CloudflareResources, projectId: str
     const kvValue = createKVToml(cloudflareResouces.kv);
     const r2Value = '';
     const aiValue = cloudflareResouces.ai ? '[ai]\nbinding = "AI"' : '';
+
+    const pattern=config.require(snakeToCamel(PROP.CUSTOM_DOMAIN));
+    const routeValue = createRoutesToml(pattern);
+
     let allConfig = pulumi.runtime.allConfig()
     const varsValue = createVarsToml(allConfig);
 
-    return pulumi.all([d1Value, kvValue]).apply(([resolvedD1, resolvedKv]) => {
-        return createToml(projectId, accountId, resolvedD1, resolvedKv, r2Value, varsValue, aiValue);
+    return pulumi.all([d1Value, kvValue, routeValue]).apply(([resolvedD1, resolvedKv, resolvedRoute]) => {
+        return createToml(projectId, accountId, resolvedD1, resolvedKv, r2Value, varsValue, aiValue, resolvedRoute);
     });
 }
 

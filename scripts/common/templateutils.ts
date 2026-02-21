@@ -19,6 +19,7 @@ head_sampling_rate = 1
 {{kvValue}}
 {{r2Value}}
 {{aiValue}}
+{{routeValue}}
 {{varsValue}}
  `.trim();
 
@@ -48,6 +49,14 @@ id = "{{id}}"
 {{/if}}
 `.trim();
 
+const routesTemplateStr = `
+{{#if pattern}}
+[[routes]]
+pattern = "{{pattern}}"
+custom_domain = true
+{{/if}}
+
+`.trim();
 
 export function createD1Toml(d1List: TypedResource<cloudflare.D1Database>[]): pulumi.Output<string> {
     return pulumi.all(d1List.map(d => pulumi.all([d.binding, d.resource.name, d.resource.id]))).apply(resolvedItems => {
@@ -60,6 +69,12 @@ export function createD1Toml(d1List: TypedResource<cloudflare.D1Database>[]): pu
         return template({ items });
     });
 }
+
+export function createRoutesToml(pattern: string): pulumi.Output<string> {
+    const template = Handlebars.compile(routesTemplateStr, { noEscape: true });
+    return pulumi.output(template({ pattern }));
+}
+
 
 export function createKVToml(kvList: TypedResource<cloudflare.WorkersKvNamespace>[]): pulumi.Output<string> {
     return pulumi.all(kvList.map(d => pulumi.all([d.binding, d.resource.title, d.resource.id]))).apply(resolvedItems => {
@@ -102,7 +117,7 @@ function formatTomlValue(value: unknown): string | undefined {
             return undefined;
     }
 }
-export function createToml(projId: string, accountId: string, d1Value: string, kvValue: string, r2Value: string, varsValue: string, aiValue: string): string {
+export function createToml(projId: string, accountId: string, d1Value: string, kvValue: string, r2Value: string, varsValue: string, aiValue: string, routeValue: string): string {
     const template = Handlebars.compile(tomlTemplate, { noEscape: true });
     return template({
         projectId: projId,
@@ -111,6 +126,7 @@ export function createToml(projId: string, accountId: string, d1Value: string, k
         kvValue,
         r2Value,
         varsValue,
-        aiValue
+        aiValue,
+        routeValue
     });
 }
