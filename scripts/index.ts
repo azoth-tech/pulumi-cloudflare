@@ -31,7 +31,7 @@ const projectId = pulumiProperty(config, PROP.PROJECT_ID);
 const projectType = pulumiProperty(config, PROP.PROJECT_TYPE);
 const cloudFlareResource = pulumiProperty(config, PROP.CLOUDFLARE_RESOURCE)!;
 const environment = pulumiProperty(config, PROP.ENVIRONMENT);
-const customDomain = pulumiProperty(config, 'CUSTOM_DOMAIN') ?? '';
+const customDomain =config.get(snakeToCamel("CUSTOM_DOMAIN")) ?? '';
 
 const apiToken = config.requireSecret(snakeToCamel(PROP.CLOUDFLARE_API_TOKEN));
 const accountId = config.require(snakeToCamel(PROP.CLOUDFLARE_ACCOUNT_ID));
