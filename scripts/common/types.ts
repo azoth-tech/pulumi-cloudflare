@@ -42,8 +42,7 @@ export const PROP = {
     BASE_URL: 'BASE_URL',
     PROJECT_ID: 'PROJECT_ID',
     PROJECT_TYPE: 'PROJECT_TYPE',
-    ENVIRONMENT: 'ENVIRONMENT',
-    CUSTOM_DOMAIN: "CUSTOM_DOMAIN"
+    ENVIRONMENT: 'ENVIRONMENT'
 } as const;
 
 export interface CLIOptions {

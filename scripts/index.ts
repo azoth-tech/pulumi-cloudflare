@@ -83,9 +83,14 @@ function createFinalToml(cloudflareResouces: CloudflareResources, projectId: str
     const kvValue = createKVToml(cloudflareResouces.kv);
     const r2Value = '';
     const aiValue = cloudflareResouces.ai ? '[ai]\nbinding = "AI"' : '';
-
-    const pattern=config.require(snakeToCamel(PROP.CUSTOM_DOMAIN));
-    const routeValue = createRoutesToml(pattern);
+    let routeValue = pulumi.output("");
+    const pattern = config.get(snakeToCamel("CUSTOM_DOMAIN"));
+    if (pattern) {
+        routeValue = createRoutesToml(pattern);
+        console.log("Custom Domain:" + pattern);
+    } else {
+        console.log("No Custom Domain Defined");
+    }
 
     let allConfig = pulumi.runtime.allConfig()
     const varsValue = createVarsToml(allConfig);
