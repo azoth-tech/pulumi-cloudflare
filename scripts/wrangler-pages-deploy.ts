@@ -46,7 +46,7 @@ await executeRaw(
 
 if (customDomain && customDomain.trim() !== '') {
     console.log(`Adding custom domain: ${customDomain}`);
-    await fetch(
+    const response = await fetch(
         `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${deployProjectId}/domains`,
         {
             method: "POST",
@@ -57,4 +57,5 @@ if (customDomain && customDomain.trim() !== '') {
             body: JSON.stringify({name: customDomain}),
         }
     );
+    console.log(JSON.stringify(response));
 }
