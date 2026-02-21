@@ -46,9 +46,15 @@ await executeRaw(
 
 if (customDomain && customDomain.trim() !== '') {
     console.log(`Adding custom domain: ${customDomain}`);
-    await executeRaw(
-        'wrangler',
-        ['pages', 'domain', 'add', customDomain, '--project-name', deployProjectId],
-        execOptions
+    await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${deployProjectId}/domains`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`
+            },
+            body: JSON.stringify({name: customDomain}),
+        }
     );
 }
