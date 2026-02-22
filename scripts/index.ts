@@ -12,7 +12,7 @@ import {
     PROJECT_DIR,
     PROP,
     PULUMI_DIR,
-    pulumiProperty,
+    pulumiProperty, splitDomain,
     snakeToCamel,
 } from "./common/index.js";
 import {createD1Toml, createKVToml, createRoutesToml, createToml, createVarsToml} from "./common/templateutils.js";
@@ -182,7 +182,36 @@ if (projectType == 'pages') {
             destinationDir: "dist",
         }
     });
+    if (customDomain) {
+        const pagesDomain = new cloudflare.PagesDomain(projectId + "_pagesdomain", {
+            accountId: accountId,
+            name: customDomain,
+            projectName: projectId,
+        }, {dependsOn: [pagesProject]});
 
+        let domain = splitDomain(customDomain);
+        const zone = cloudflare.getZones({
+            account: {
+                id: accountId
+            },
+            name: domain.zoneName
+        });
+        const zoneId = zone.then(z => {
+            if (!z.results || z.results.length === 0) {
+                throw new Error(`No Cloudflare zone found for ${domain.zoneName}`);
+            }
+            return z.results[0].id;
+        });
+        const cnameRecord = new cloudflare.DnsRecord(projectId + "_cnameRecord", {
+            zoneId: zoneId,
+            name: domain.subdomain,
+            type: "CNAME",
+            ttl: 3600,
+            proxied: true,
+            content: `${projectId}.pages.dev`
+        }, {dependsOn: [pagesDomain]});
+
+    }
     const plainTextEnvProps = pulumi
         .all(createWorkerBindings(config))
         .apply(bindings =>

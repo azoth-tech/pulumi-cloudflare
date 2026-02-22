@@ -218,3 +218,14 @@ export function getD1DbName(cloudflareResource: string, projectId: string): stri
     }
     return `${d1Spec}_${projectId}`;
 }
+export function splitDomain(customDomain: string) {
+    const parts = customDomain.split(".");
+    if (parts.length < 2) {
+        throw new Error("Invalid domain: " + customDomain);
+    }
+    // Zone = last 2 parts
+    const zoneName = parts.slice(-2).join(".");
+    // Subdomain = everything before zone
+    const subdomain = parts.slice(0, -2).join(".");
+    return { subdomain, zoneName };
+}

@@ -46,18 +46,18 @@ await executeRaw(
     execOptions
 );
 
-if (customDomain && customDomain.trim() !== '') {
-    console.log(`Adding custom domain: ${customDomain}`);
-    const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${deployProjectId}/domains`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`
-            },
-            body: JSON.stringify({name: customDomain}),
-        }
-    );
-    console.log(JSON.stringify(response));
-}
+// if (customDomain && customDomain.trim() !== '') {
+//     console.log(`Adding custom domain: ${customDomain}`);
+//     const response = await fetch(
+//         `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/${deployProjectId}/domains`,
+//         {
+//             method: "POST",
+//             headers: {
+//                 "Content-Type": "application/json",
+//                 "Authorization": `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`
+//             },
+//             body: JSON.stringify({name: customDomain}),
+//         }
+//     );
+//     console.log(JSON.stringify(response));
+// }
