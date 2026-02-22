@@ -206,7 +206,7 @@ if (projectType == 'pages') {
             zoneId: zoneId,
             name: domain.subdomain,
             type: "CNAME",
-            ttl: 3600,
+            ttl: 1,
             proxied: true,
             content: `${projectId}.pages.dev`
         }, {dependsOn: [pagesDomain]});
