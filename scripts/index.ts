@@ -115,7 +115,7 @@ const finalToml = createFinalToml(cloudflareResources, projectId, accountId);
 const createWranglerToml = new command.local.Command(
     "write-wrangler-toml",
     {
-        create: pulumi.interpolate`npx tsx "./pulumi-cloudflare/scripts/create-wrangler-toml.ts" "${wranglerTomlFile}"`,
+        create: pulumi.interpolate`npx tsx ${path.join(".", "pulumi-cloudflare", "scripts", "create-wrangler-toml.ts")} "${wranglerTomlFile}"`,
         stdin: finalToml,
         dir: projectRoot,
     },
@@ -225,7 +225,7 @@ if (projectType == 'pages') {
     const buildDeployPages = new command.local.Command(
         'build-deploy-pages',
         {
-            create: pulumi.interpolate`npx tsx "./pulumi-cloudflare/scripts/wrangler-pages-deploy.ts" "${projectId}" "${environment}" ${customDomain}`,
+            create: pulumi.interpolate`npx tsx ${path.join(".", "pulumi-cloudflare", "scripts", "wrangler-pages-deploy.ts")} "${projectId}" "${environment}" ${customDomain}`,
             dir: projectRoot,
             environment: plainTextEnvProps,
             triggers: [new Date().toISOString()],
